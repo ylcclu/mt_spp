@@ -436,7 +436,23 @@ class SimpleLossCompute:
         )
         return sloss.data * norm, sloss
     
-def train_worker(train_dataloader, src_vocab_size, tgt_vocab_size, gpu=0,
+class DummyOptimizer(torch.optim.Optimizer):
+    def __init__(self):
+        self.param_groups = [{"lr": 0}]
+        None
+
+    def step(self):
+        None
+
+    def zero_grad(self, set_to_none=False):
+        None
+
+
+class DummyScheduler:
+    def step(self):
+        None
+    
+def train_worker(train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, gpu=0,
                  save_path=None, save=False):
 
     model = make_model(src_vocab_size, tgt_vocab_size, N=NUM_HEADS)
@@ -472,6 +488,20 @@ def train_worker(train_dataloader, src_vocab_size, tgt_vocab_size, gpu=0,
             accum_iter=ACCUM_ITER,
             train_state=train_state
         )
+
+        print(f"[GPU{gpu}] Epoch {epoch} Validation ====", flush=True)
+        model.eval()
+        sloss = run_epoch(
+            (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in dev_loader),
+            model,
+            SimpleLossCompute(module.generator, criterion),
+            DummyOptimizer(),
+            DummyScheduler(),
+            mode="eval",
+        )
+        print(sloss)
+        torch.cuda.empty_cache()
+
         if save:
             # save after each epoch
             checkpoint = {
@@ -509,5 +539,5 @@ if __name__ == "__main__":
                             shuffle=True,
                             drop_last=False)
     
-    train_worker(train_loader, src_dict.n_words, tgt_dict.n_words, save_path="transformer", save=True)
+    train_worker(train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path="transformer", save=True)
     
