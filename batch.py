@@ -2,8 +2,6 @@ from dictionary import Dictionary
 import textloader as dl
 import numpy as np
 import pandas as pd
-from config import index_padding, padding
-from transformer import subsequent_mask
 
 class Batch:
     S = [[]]
@@ -179,27 +177,6 @@ def print_batches_string(batches: list[Batch], sourceDict: Dictionary, targetDic
         T_string = [[targetDict.get_word(x) for x in row] for row in batch.T]
         L_string = [[targetDict.get_word(x) for x in row] for row in batch.L]
         print(pd.DataFrame({"S": S_string, "T": T_string, "L": L_string}))
-
-class Seq2SeqBatch:
-    """Object for holding a batch of data with mask during training"""
-
-    def __init__(self, src, tgt=None, pad=index_padding):
-        self.src = src
-        self.src_mask = (src != pad).unsqueeze(-2)
-        if tgt is not None:
-            self.tgt = tgt[:, :-1] # target context
-            self.tgt_y = tgt[:, 1:] # what we want to predict
-            self.tgt_mask = self.make_std_mask(self.tgt, pad)
-            self.ntokens = (self.tgt_y != pad).data.sum()
-    
-    @staticmethod
-    def make_std_mask(tgt, pad):
-        "Create a mask to hide padding and future words"
-        tgt_mask = (tgt != pad).unsqueeze(-2)
-        tgt_mask = tgt_mask & subsequent_mask(tgt.size(-1)).type_as(
-            tgt_mask.data
-        )
-        return tgt_mask
 
 if __name__ == '__main__':
 

@@ -2,12 +2,13 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import log_softmax
 import copy, math, time
-from config import NUM_LAYERS, DIM_MODEL, DIM_FF, NUM_HEADS, DROPOUT, TRANSFORMER_BATCH_SIZE
-from batch import Seq2SeqBatch as Batch
-from rnn_dataset import TransformerDataset
+from config import NUM_LAYERS, DIM_MODEL, DIM_FF, NUM_HEADS, DROPOUT, TRANSFORMER_BATCH_SIZE, index_padding, BASE_LR, WARMUP, TRANSFORMER_NUM_EPOCHS, ACCUM_ITER
+from transformer_dataset import TransformerDataset
 import textloader as tl
 from dictionary import Dictionary
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import LambdaLR
+from transformer_dataset import Seq2SeqBatch, TransformerDataset
 
 class EncoderDecoder(nn.Module):
     "    A standard Encoder-Decoder architecture."
@@ -155,16 +156,6 @@ class DecoderLayer(nn.Module):
         # output embeddings are also offset by one position
         # => predicitons for position i can depend only on the known outputs at position < i
         return self.sublayer[2](x, self.feed_forward)
-    
-def subsequent_mask(size):
-    "Mask out subsequent positions during decoding"
-    "to prevent leftward information flow in the decoder to preserve the auto-regressive property"
-    attn_shape = (1, size, size)
-    subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8)
-    # triu returns an upper triangle
-    return subsequent_mask == 0
-    # returns a boolean tensor where every element above the diagonal is False
-    #                                and every other is True
 
 def attention(query, key, value, mask=None, dropout=None):
     """
@@ -302,7 +293,7 @@ class PositionalEncoding(nn.Module):
     
 # define a function from hyperparameter to a full model
 def make_model(
-        src_vocab, tgt_vocab, Ns=NUM_LAYERS, d_model=DIM_MODEL,
+        src_vocab, tgt_vocab, N=NUM_LAYERS, d_model=DIM_MODEL,
         d_ff=DIM_FF, h=NUM_HEADS, dropout=DROPOUT
 ):
     "Helper: Construct a model from hyperparameters"
@@ -349,6 +340,11 @@ def run_epoch(
     tokens = 0
     n_accum = 0
     for i, batch in enumerate(data_iter):
+        batch.src, batch.tgt, batch.tgt_y, batch.src_mask, batch.tgt_mask = (batch.src.to(device=device), 
+                                               batch.tgt.to(device=device), 
+                                               batch.tgt_y.to(device=device), 
+                                               batch.src_mask.to(device=device), 
+                                               batch.tgt_mask.to(device=device))
         out = model.forward(
             batch.src, batch.tgt, batch.src_mask, batch.tgt_mask
         )
@@ -357,7 +353,7 @@ def run_epoch(
         if mode == "train" or mode == "train+log":
             loss_node.backward()
             train_state.step += 1
-            train_state.samples += batch.src.shape[0]
+            train_state.samples += src.shape[0]
             train_state.tokens += batch.ntokens
             if i % accum_iter == 0:
                 optimizer.step()
@@ -383,7 +379,7 @@ def run_epoch(
         del loss_node
     return total_loss / total_tokens, train_state
 
-def rate(step, model_size, factor, warmup):
+def learning_rate(step, model_size, factor, warmup):
     """
         default the step to 1 for LambdaLR function
         to avoid zero raising to negative power
@@ -423,7 +419,71 @@ class LabelSmoothing(nn.Module):
         self.true_dist = true_dist
         return self.criterion(x, true_dist.clone().detach())
     
+class SimpleLossCompute:
+    "A simple loss compute and train function"
 
+    def __init__(self, generator, criterion):
+        self.generator = generator
+        self.criterion = criterion
+
+    def __call__(self, x, y, norm):
+        x = self.generator(x)
+        sloss = (
+            self.criterion(
+                x.contiguous().view(-1, x.size(-1)), y.contiguous().view(-1)
+            )
+            / norm
+        )
+        return sloss.data * norm, sloss
+    
+def train_worker(train_dataloader, src_vocab_size, tgt_vocab_size, gpu=0,
+                 save_path=None, save=False):
+
+    model = make_model(src_vocab_size, tgt_vocab_size, N=NUM_HEADS)
+    model.cuda(gpu)
+    module = model
+
+    criterion = LabelSmoothing(
+        size=tgt_vocab_size, padding_idx=index_padding, smoothing=0.1
+    )
+    criterion.cuda(gpu)
+
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=BASE_LR, betas=(0.9, 0.98), eps=1e-9
+    )
+    lr_scheduler = LambdaLR(
+        optimizer=optimizer, 
+        lr_lambda=lambda step: learning_rate(
+            step, DIM_MODEL, factor=1, warmup=WARMUP
+        )
+    )
+    train_state = TrainState()
+
+    for epoch in range(TRANSFORMER_NUM_EPOCHS):
+        model.train()
+        print(f"[GPU{gpu}] Epoch {epoch} Training ====", flush=True)
+        loss, train_state = run_epoch(
+            (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in train_dataloader),
+            model,
+            SimpleLossCompute(module.generator, criterion),
+            optimizer,
+            lr_scheduler,
+            mode="train+log",
+            accum_iter=ACCUM_ITER,
+            train_state=train_state
+        )
+        if save:
+            # save after each epoch
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': module.state_dict(),
+                'optim_state_dict': optimizer.state_dict(),
+                'loss': loss
+            }
+            torch.save(checkpoint, save_path+f"/epoch_{epoch}.pt")
+            print(f"Model saved at the end of epoch {epoch}.")
+    
+    print("Training ended.")
 
 if __name__ == "__main__":
     save_path = 'model/transformer'
@@ -437,7 +497,17 @@ if __name__ == "__main__":
     src_dict = Dictionary(src)
     tgt_dict = Dictionary(tgt)
 
-    train_dataset = TransformerDataset(src, tgt, src_dict, tgt_dict, device)
-    dev_dataset = TransformerDataset(dev_src, dev_tgt, src_dict, tgt_dict, device)
+    train_dataset = TransformerDataset(src, tgt, src_dict, tgt_dict)
+    dev_dataset = TransformerDataset(dev_src, dev_tgt, src_dict, tgt_dict)
 
-    train_loader = DataLoader(train_dataset, TRANSFORMER_BATCH_SIZE, )
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=TRANSFORMER_BATCH_SIZE,
+                              shuffle=True,
+                              drop_last=False)
+    dev_loader = DataLoader(dataset=dev_dataset,
+                            batch_size=TRANSFORMER_BATCH_SIZE,
+                            shuffle=True,
+                            drop_last=False)
+    
+    train_worker(train_loader, src_dict.n_words, tgt_dict.n_words, save_path="transformer", save=True)
+    
