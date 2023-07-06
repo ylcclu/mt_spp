@@ -353,7 +353,7 @@ def run_epoch(
         if mode == "train" or mode == "train+log":
             loss_node.backward()
             train_state.step += 1
-            train_state.samples += src.shape[0]
+            train_state.samples += batch.src.shape[0]
             train_state.tokens += batch.ntokens
             if i % accum_iter == 0:
                 optimizer.step()
