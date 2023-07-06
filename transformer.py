@@ -539,5 +539,5 @@ if __name__ == "__main__":
                             shuffle=True,
                             drop_last=False)
     
-    train_worker(train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path="transformer", save=True)
+    train_worker(train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path="model", save=True)
     
