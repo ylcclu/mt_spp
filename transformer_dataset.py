@@ -107,7 +107,7 @@ class Seq2SeqBatch:
         )
         return tgt_mask
         
-def greedy_decode(model, src, src_mask, max_len, start_symbol):
+def greedy_search(model, src, src_mask, max_len, start_symbol):
     memory = model.encode(src, src_mask)
     ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data)
     for _ in range(max_len - 1):
@@ -122,16 +122,16 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
         )
     return ys
 
-def beam_decode():
+def beam_search():
     return
 
-def decode(model, src, src_mask, max_len, start_symbol, mode='beam'):
+def search(model, src, src_mask, max_len, start_symbol, mode='beam'):
     model.eval()
     with torch.no_grad():
         if mode == 'beam':
-            return beam_decode()
+            return beam_search()
         elif mode == 'greedy':
-            return greedy_decode(model, src, src_mask, max_len, start_symbol)
+            return greedy_search(model, src, src_mask, max_len, start_symbol)
 
 from batch import array_to_text
 
@@ -141,7 +141,7 @@ def generate_translation(trained_model, dev_loader, vocab_tgt):
 
     for (src, tgt) in dev_loader:
         batch = Seq2SeqBatch(src, tgt, config.index_padding)
-        model_out = decode(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start)[0]
+        model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start)[0]
         model_txt = array_to_text(model_out, vocab_tgt)
         translations.append(model_txt)
 

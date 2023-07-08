@@ -478,7 +478,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
 
     for epoch in range(TRANSFORMER_NUM_EPOCHS):
         model.train()
-        print(f"[GPU{gpu}] Epoch {epoch} Training ====", flush=True)
+        print(f"[GPU{gpu}] Epoch {epoch+1} Training ====", flush=True)
         loss, train_state = run_epoch(
             (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in train_dataloader),
             model,
@@ -490,7 +490,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             train_state=train_state
         )
 
-        print(f"[GPU{gpu}] Epoch {epoch} Validation ====", flush=True)
+        print(f"[GPU{gpu}] Epoch {epoch+1} Validation ====", flush=True)
         model.eval()
         sloss = run_epoch(
             (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in dev_loader),
@@ -500,7 +500,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             DummyScheduler(),
             mode="eval",
         )
-        print(sloss)
+        print(sloss.item())
         torch.cuda.empty_cache()
 
         if save:
@@ -512,8 +512,8 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             #     'loss': loss
             # }
             # torch.save(checkpoint, save_path+f"/epoch_{epoch}.pt")
-            torch.save(module.state_dict(), save_path+f"/epoch_{epoch}.pt")
-            print(f"Model saved at the end of epoch {epoch}.")
+            torch.save(module.state_dict(), save_path+f"/epoch_{epoch+1}.pt")
+            print(f"Model saved at the end of epoch {epoch+1}.")
     
     print("Training ended.")
 
