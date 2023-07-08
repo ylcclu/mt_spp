@@ -500,7 +500,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             DummyScheduler(),
             mode="eval",
         )
-        print(sloss.item())
+        print(sloss.data)
         torch.cuda.empty_cache()
 
         if save:
