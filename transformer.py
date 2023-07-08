@@ -8,7 +8,7 @@ import textloader as tl
 from dictionary import Dictionary
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import LambdaLR
-from transformer_dataset import Seq2SeqBatch, TransformerDataset
+from transformer_dataset import Seq2SeqBatch, TransformerDataset, generate_translation
 
 class EncoderDecoder(nn.Module):
     "    A standard Encoder-Decoder architecture."
@@ -370,7 +370,9 @@ def run_epoch(
             elapsed = time.time() - start
             print(
                 f"Epoch Step: {i} | Accumulation Step : {n_accum} "
-                + f"| Loss: {(loss / batch.ntokens):.2f} | Tokens / Sec: {(tokens / elapsed):.1f} "
+                + f"| Loss: {(loss / batch.ntokens):.2f} " # padding tokens ignored
+                + f"| Perplexity: {(math.exp(loss / batch.ntokens)):.2f}"
+                + f"| Tokens / Sec: {(tokens / elapsed):.1f} "
                 + f"| Learning Rate: {lr}"
             )
             start = time.time()
@@ -452,10 +454,9 @@ class DummyScheduler:
     def step(self):
         None
     
-def train_worker(train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, gpu=0,
+def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, gpu=0,
                  save_path=None, save=False):
 
-    model = make_model(src_vocab_size, tgt_vocab_size, N=NUM_HEADS)
     model.cuda(gpu)
     module = model
 
@@ -515,14 +516,58 @@ def train_worker(train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, g
     
     print("Training ended.")
 
+from os.path import exists
+
+def load_trained_model(model: nn.Module, model_path):
+    assert exists(model_path)
+    model.load_state_dict(torch.load(model_path))
+    return model
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from config import TRANSFORMER_NUM_EPOCHS
+from dictionary import remove_special_symbols
+from bleu import bleu
+
+def showPlot(points):
+    fig, ax = plt.subplots()
+    # this locator puts ticks at regular intervals
+    loc = ticker.MultipleLocator(base=0.2)
+    ax.yaxis.set_major_locator(loc)
+    plt.plot(points)
+    plt.show()
+
+def plot_bleu(ref, dev_dataloader, model, model_path, vocab_tgt):
+    plotpoints = []
+    for idx in range(TRANSFORMER_NUM_EPOCHS):
+        hypo_file_path = ""
+        if idx == (TRANSFORMER_NUM_EPOCHS - 1):
+            hypo_file_path = f"{model_path}_epoch_{idx}.txt"
+        model_path = f"{model_path}_epoch_{idx}.pt"
+        model = load_trained_model(model, model_path)
+        hypos = remove_special_symbols(generate_translation(model, dev_dataloader, vocab_tgt))
+
+        # save hypos in .txt file
+        if idx == (TRANSFORMER_NUM_EPOCHS - 1):
+            with open(hypo_file_path, 'w') as f:
+                for sentence in hypos:
+                    f.write(f"{sentence}\n")
+        
+        # plot bleu
+        bleu_score = bleu(ref, hypos)
+        plotpoints.append(bleu_score)
+        print("Bleu done for " + model_path + f": {bleu_score}")
+    showPlot(plotpoints)
+
 if __name__ == "__main__":
-    save_path = 'model/transformer'
+    save_path = 'model/'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     src = tl.loadData('data/bpe_de_7000.txt')
     tgt = tl.loadData('data/bpe_en_7000.txt')
     dev_src = tl.loadData('data/bpe_7k_multi30k.dev.de')
     dev_tgt = tl.loadData('data/bpe_7k_multi30k.dev.en')
+    ref = tl.loadData('data/bpe_7k_multi30k.dev.en')
 
     src_dict = Dictionary(src)
     tgt_dict = Dictionary(tgt)
@@ -539,5 +584,10 @@ if __name__ == "__main__":
                             shuffle=True,
                             drop_last=False)
     
-    train_worker(train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path="model", save=True)
+    model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
+
+    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
+    # model = load_trained_model(model, save_path)
+
+    plot_bleu(ref, dev_loader, model, save_path, tgt_dict)
