@@ -505,13 +505,14 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
 
         if save:
             # save after each epoch
-            checkpoint = {
-                'epoch': epoch,
-                'model_state_dict': module.state_dict(),
-                'optim_state_dict': optimizer.state_dict(),
-                'loss': loss
-            }
-            torch.save(checkpoint, save_path+f"/epoch_{epoch}.pt")
+            # checkpoint = {
+            #     'epoch': epoch,
+            #     'model_state_dict': module.state_dict(),
+            #     'optim_state_dict': optimizer.state_dict(),
+            #     'loss': loss
+            # }
+            # torch.save(checkpoint, save_path+f"/epoch_{epoch}.pt")
+            torch.save(module.state_dict(), save_path+f"/epoch_{epoch}.pt")
             print(f"Model saved at the end of epoch {epoch}.")
     
     print("Training ended.")
@@ -586,8 +587,6 @@ if __name__ == "__main__":
     
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
-    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
-    # model = load_trained_model(model, save_path)
-
     plot_bleu(ref, dev_loader, model, save_path, tgt_dict)
