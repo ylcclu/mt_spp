@@ -542,8 +542,8 @@ def plot_bleu(ref, dev_dataloader, model, model_path, vocab_tgt):
     for idx in range(TRANSFORMER_NUM_EPOCHS):
         hypo_file_path = ""
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
-            hypo_file_path = f"{model_path}_epoch_{idx}.txt"
-        model_path = f"{model_path}_epoch_{idx}.pt"
+            hypo_file_path = f"{model_path}/epoch_{idx}.txt"
+        model_path = f"{model_path}/epoch_{idx}.pt"
         model = load_trained_model(model, model_path)
         hypos = remove_special_symbols(generate_translation(model, dev_dataloader, vocab_tgt))
 
