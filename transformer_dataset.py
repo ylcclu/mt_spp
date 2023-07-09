@@ -111,6 +111,7 @@ def greedy_search(model, src, src_mask, max_len, start_symbol):
     memory = model.encode(src, src_mask)
     ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data)
     for _ in range(max_len - 1):
+        print(f"subsequent_mask(ys.size(1)).type_as(src.data) {subsequent_mask(ys.size(1)).type_as(src.data)}")
         out = model.decode(
             memory, src_mask, ys, subsequent_mask(ys.size(1)).type_as(src.data)
         )
