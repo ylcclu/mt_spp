@@ -134,6 +134,7 @@ def search(model, src, src_mask, max_len, start_symbol, mode='beam'):
             return greedy_search(model, src, src_mask, max_len, start_symbol)
 
 from batch import array_to_text
+from dictionary import remove_special_symbols
 
 def generate_translation(trained_model, dev_loader, vocab_tgt):
 
@@ -141,9 +142,9 @@ def generate_translation(trained_model, dev_loader, vocab_tgt):
 
     for (src, tgt) in dev_loader:
         batch = Seq2SeqBatch(src, tgt, config.index_padding)
-        model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start)[0]
+        model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
         model_txt = array_to_text(model_out, vocab_tgt)
         translations.append(model_txt)
 
-    return translations
+    return remove_special_symbols(translations)
 

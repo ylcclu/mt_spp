@@ -546,7 +546,7 @@ def plot_bleu(ref, dev_dataloader, model, model_path, vocab_tgt):
             hypo_file_path = f"{model_path}/epoch_{idx}.txt"
         model_path = f"{model_path}/epoch_{idx}.pt"
         model = load_trained_model(model, model_path)
-        hypos = remove_special_symbols(generate_translation(model, dev_dataloader, vocab_tgt))
+        hypos = generate_translation(model, dev_dataloader, vocab_tgt)
 
         # save hypos in .txt file
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
