@@ -171,6 +171,7 @@ def attention(query, key, value, mask=None, dropout=None):
     # to counteract the effect of dot products growing large for large d_k
     # large dot product leads to small gradients after softmax
     # which is suspected to be why additive attn outperforms dot product attn
+    print(f"scores {scores.size()}, mask {mask.size()}")
     if mask is not None:
         print(f"scores {scores.size()}, mask {mask.size()}")
         scores = scores.masked_fill(mask == 0, -1e9)
