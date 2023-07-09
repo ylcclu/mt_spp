@@ -172,6 +172,7 @@ def attention(query, key, value, mask=None, dropout=None):
     # large dot product leads to small gradients after softmax
     # which is suspected to be why additive attn outperforms dot product attn
     if mask is not None:
+        print(f"scores {scores.size()}, mask {mask.size()}")
         scores = scores.masked_fill(mask == 0, -1e9)
     p_attn = scores.softmax(dim=-1)
     if dropout is not None:
@@ -587,6 +588,6 @@ if __name__ == "__main__":
     
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
-    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
     plot_bleu(ref, dev_loader, model, save_path, tgt_dict)
