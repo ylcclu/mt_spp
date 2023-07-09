@@ -492,7 +492,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
 
         print(f"[GPU{gpu}] Epoch {epoch+1} Validation ====", flush=True)
         model.eval()
-        sloss = run_epoch(
+        sloss, _ = run_epoch(
             (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in dev_loader),
             model,
             SimpleLossCompute(module.generator, criterion),
@@ -500,8 +500,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             DummyScheduler(),
             mode="eval",
         )
-        print(sloss)
-        print(sloss.size())
+        print(sloss.item())
         torch.cuda.empty_cache()
 
         if save:
