@@ -596,7 +596,7 @@ if __name__ == "__main__":
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
 
-    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
     # plot_bleu(ref, dev_src, model, save_path, src_dict, tgt_dict)
 
@@ -605,4 +605,4 @@ if __name__ == "__main__":
                                      shuffle=False,
                                      drop_last=False)
 
-    plot_bleu(ref, dev_for_translation, model, save_path, src_dict, tgt_dict, device=device)
+    plot_bleu(ref, dev_for_translation, model, save_path, tgt_dict, device=device)
