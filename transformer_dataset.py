@@ -167,8 +167,8 @@ def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary):
         batch = Seq2SeqBatch(src, tgt, config.index_padding)
 
         model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
-        print(f"model_out {model_out}")
-        print(f"src {batch.src}")
+        # print(f"model_out {model_out}")
+        # print(f"src {batch.src}")
 
         model_txt = (
             " ".join(
@@ -176,7 +176,7 @@ def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary):
             ).split(config.sentence_end, 1)[0]
             + config.sentence_end
         )
-        print(model_txt)
+        # print(model_txt)
         translations.append(model_txt)
 
     return remove_special_symbols(translations)
