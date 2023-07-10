@@ -332,7 +332,8 @@ def run_epoch(
         scheduler,
         mode="train",
         accum_iter=1,
-        train_state=TrainState()
+        train_state=TrainState(),
+        device=torch.device("cpu")
 ):
     "Train a single epoch"
     start = time.time()
@@ -372,9 +373,9 @@ def run_epoch(
             print(
                 f"Epoch Step: {i} | Accumulation Step : {n_accum} "
                 + f"| Loss: {(loss / batch.ntokens):.2f} " # padding tokens ignored
-                + f"| Perplexity: {(math.exp(loss / batch.ntokens)):.2f}"
+                + f"| Perplexity: {(math.exp(loss / batch.ntokens)):.2f} "
                 + f"| Tokens / Sec: {(tokens / elapsed):.1f} "
-                + f"| Learning Rate: {lr}"
+                + f"| Learning Rate: {lr:.1e}"
             )
             start = time.time()
             tokens = 0
@@ -455,16 +456,18 @@ class DummyScheduler:
     def step(self):
         None
     
-def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, # gpu=0,
+def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, device=torch.device("cpu"), gpu=0,
                  save_path=None, save=False):
 
-    #  model.cuda(gpu)
+    if device != torch.device("cpu"):
+        model.cuda(gpu)
     module = model
 
     criterion = LabelSmoothing(
         size=tgt_vocab_size, padding_idx=index_padding, smoothing=0.1
     )
-    # criterion.cuda(gpu)
+    if device != torch.device("cpu"):
+        criterion.cuda(gpu)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=BASE_LR, betas=(0.9, 0.98), eps=1e-9
@@ -488,7 +491,8 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             lr_scheduler,
             mode="train+log",
             accum_iter=ACCUM_ITER,
-            train_state=train_state
+            train_state=train_state,
+            device=device
         )
 
         print(f"Epoch {epoch+1} Validation ====", flush=True)
@@ -501,28 +505,31 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             DummyScheduler(),
             mode="eval",
         )
-        print(sloss.item())
+        print(f"Loss on dev: {sloss.item():.2f}, PPL on dev: {math.exp(sloss.item()):.2f}")
         torch.cuda.empty_cache()
 
         if save:
             # save after each epoch
-            # checkpoint = {
-            #     'epoch': epoch,
-            #     'model_state_dict': module.state_dict(),
-            #     'optim_state_dict': optimizer.state_dict(),
-            #     'loss': loss
-            # }
-            # torch.save(checkpoint, save_path+f"/epoch_{epoch}.pt")
             torch.save(module.state_dict(), save_path+f"/epoch_{epoch+1}.pt")
             print(f"Model saved at the end of epoch {epoch+1}.")
+
+            if epoch == TRANSFORMER_NUM_EPOCHS-1:
+                checkpoint = {
+                    'epoch': epoch,
+                    'model_state_dict': module.state_dict(),
+                    'optim_state_dict': optimizer.state_dict(),
+                    'loss': loss
+                }
+                torch.save(checkpoint, save_path+f"/epoch_{epoch}_w_opt.pt")
+                print("Model with optimizer saved at the end of training")
     
     print("Training ended.")
 
 from os.path import exists
 
-def load_trained_model(model: nn.Module, model_path):
+def load_trained_model(model: nn.Module, model_path, device):
     assert exists(model_path)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(model_path, map_location=device))
     return model
 
 import matplotlib.pyplot as plt
@@ -538,16 +545,16 @@ def showPlot(points):
     plt.plot(points)
     plt.show()
 
-def plot_bleu(ref, src, model, model_path, vocab_src, vocab_tgt):
+def plot_bleu(ref, src, model, model_path, vocab_tgt, device):
     plotpoints = []
     for idx in range(TRANSFORMER_NUM_EPOCHS):
         hypo_file_path = ""
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
             hypo_file_path = f"{model_path}epoch_{idx+1}.txt"
         model_path = f"{model_path}epoch_{idx+1}.pt"
-        model = load_trained_model(model, model_path)
+        model = load_trained_model(model, model_path, device)
         # hypos = generate_translation(model, src, vocab_src, vocab_tgt)
-        hypos = generate_translation(model, src, vocab_tgt)
+        hypos = generate_translation(model, src, vocab_tgt, device)
 
         # save hypos in .txt file
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
@@ -589,7 +596,7 @@ if __name__ == "__main__":
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
 
-    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
     # plot_bleu(ref, dev_src, model, save_path, src_dict, tgt_dict)
 
@@ -598,4 +605,4 @@ if __name__ == "__main__":
                                      shuffle=False,
                                      drop_last=False)
 
-    plot_bleu(ref, dev_for_translation, model, save_path, src_dict, tgt_dict)
+    plot_bleu(ref, dev_for_translation, model, save_path, src_dict, tgt_dict, device=device)

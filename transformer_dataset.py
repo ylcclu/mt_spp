@@ -158,13 +158,15 @@ from dictionary import remove_special_symbols, text_to_array
 
 #     return remove_special_symbols(translations)
 
-def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary):
+def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary, device):
 
     translations = []
 
     for (src, tgt) in dev_loader:
         # print(f"generate_translation src {src}")
         batch = Seq2SeqBatch(src, tgt, config.index_padding)
+
+        batch.src, batch.src_mask = batch.src.to(device=device), batch.src_mask.to(device=device)
 
         model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
         # print(f"model_out {model_out}")
