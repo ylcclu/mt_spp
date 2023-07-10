@@ -110,8 +110,9 @@ class Seq2SeqBatch:
 def greedy_search(model, src, src_mask, max_len, start_symbol):
     memory = model.encode(src, src_mask)
     ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data)
+    # print(f"greedy_search: memory {memory.size()}, ys {ys.size()}")
     for _ in range(max_len - 1):
-        print(f"subsequent_mask(ys.size(1)).type_as(src.data) {subsequent_mask(ys.size(1)).type_as(src.data)}")
+        # print(f"subsequent_mask(ys.size(1)).type_as(src.data) {subsequent_mask(ys.size(1)).type_as(src.data)}")
         out = model.decode(
             memory, src_mask, ys, subsequent_mask(ys.size(1)).type_as(src.data)
         )
@@ -134,22 +135,48 @@ def search(model, src, src_mask, max_len, start_symbol, mode='beam'):
         elif mode == 'greedy':
             return greedy_search(model, src, src_mask, max_len, start_symbol)
 
-from batch import array_to_text
-from dictionary import remove_special_symbols
+# from batch import array_to_text
+from dictionary import remove_special_symbols, text_to_array
+
+# def generate_translation(trained_model, src, vocab_src, vocab_tgt: Dictionary):
+
+#     translations = []
+
+#     src = text_to_array(src, vocab_src)
+
+#     for src_sentence in src:
+#         print(f"src_sentence {src_sentence}")
+#         batch = Seq2SeqBatch(torch.tensor(src_sentence), tgt=None, pad=config.index_padding)
+#         model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
+#         model_txt = (
+#             " ".join(
+#                 [vocab_tgt.get_word(x) for x in model_out if x != config.index_padding]
+#             ).split(config.sentence_end, 1)[0]
+#             + config.sentence_end
+#         )
+#         translations.append(model_txt)
+
+#     return remove_special_symbols(translations)
 
 def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary):
 
     translations = []
 
     for (src, tgt) in dev_loader:
+        # print(f"generate_translation src {src}")
         batch = Seq2SeqBatch(src, tgt, config.index_padding)
+
         model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
+        print(f"model_out {model_out}")
+        print(f"src {batch.src}")
+
         model_txt = (
             " ".join(
-                [vocab_tgt.get_word(x) for x in model_out if x != config.index_padding]
+                [vocab_tgt.get_word(x) for x in model_out.tolist() if x != config.index_padding]
             ).split(config.sentence_end, 1)[0]
             + config.sentence_end
         )
+        print(model_txt)
         translations.append(model_txt)
 
     return remove_special_symbols(translations)

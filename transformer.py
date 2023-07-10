@@ -173,7 +173,6 @@ def attention(query, key, value, mask=None, dropout=None):
     # which is suspected to be why additive attn outperforms dot product attn
     
     if mask is not None:
-        # print(f"scores {scores.size()}, mask {mask.size()}")
         scores = scores.masked_fill(mask == 0, -1e9)
     p_attn = scores.softmax(dim=-1)
     if dropout is not None:
@@ -539,15 +538,16 @@ def showPlot(points):
     plt.plot(points)
     plt.show()
 
-def plot_bleu(ref, dev_dataloader, model, model_path, vocab_tgt):
+def plot_bleu(ref, src, model, model_path, vocab_src, vocab_tgt):
     plotpoints = []
     for idx in range(TRANSFORMER_NUM_EPOCHS):
         hypo_file_path = ""
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
-            hypo_file_path = f"{model_path}/epoch_{idx}.txt"
-        model_path = f"{model_path}/epoch_{idx}.pt"
+            hypo_file_path = f"{model_path}epoch_{idx+1}.txt"
+        model_path = f"{model_path}epoch_{idx+1}.pt"
         model = load_trained_model(model, model_path)
-        hypos = generate_translation(model, dev_dataloader, vocab_tgt)
+        # hypos = generate_translation(model, src, vocab_src, vocab_tgt)
+        hypos = generate_translation(model, src, vocab_tgt)
 
         # save hypos in .txt file
         if idx == (TRANSFORMER_NUM_EPOCHS - 1):
@@ -588,6 +588,14 @@ if __name__ == "__main__":
     
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
-    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+
+    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
-    plot_bleu(ref, dev_loader, model, save_path, tgt_dict)
+    # plot_bleu(ref, dev_src, model, save_path, src_dict, tgt_dict)
+
+    dev_for_translation = DataLoader(dataset=dev_dataset,
+                                     batch_size=1,
+                                     shuffle=False,
+                                     drop_last=False)
+
+    plot_bleu(ref, dev_for_translation, model, save_path, src_dict, tgt_dict)
