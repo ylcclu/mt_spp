@@ -171,9 +171,9 @@ def attention(query, key, value, mask=None, dropout=None):
     # to counteract the effect of dot products growing large for large d_k
     # large dot product leads to small gradients after softmax
     # which is suspected to be why additive attn outperforms dot product attn
-    print(f"scores {scores.size()}, mask {mask.size()}")
+    
     if mask is not None:
-        print(f"scores {scores.size()}, mask {mask.size()}")
+        # print(f"scores {scores.size()}, mask {mask.size()}")
         scores = scores.masked_fill(mask == 0, -1e9)
     p_attn = scores.softmax(dim=-1)
     if dropout is not None:
@@ -456,16 +456,16 @@ class DummyScheduler:
     def step(self):
         None
     
-def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, gpu=0,
+def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_size, # gpu=0,
                  save_path=None, save=False):
 
-    model.cuda(gpu)
+    #  model.cuda(gpu)
     module = model
 
     criterion = LabelSmoothing(
         size=tgt_vocab_size, padding_idx=index_padding, smoothing=0.1
     )
-    criterion.cuda(gpu)
+    # criterion.cuda(gpu)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=BASE_LR, betas=(0.9, 0.98), eps=1e-9
@@ -480,7 +480,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
 
     for epoch in range(TRANSFORMER_NUM_EPOCHS):
         model.train()
-        print(f"[GPU{gpu}] Epoch {epoch+1} Training ====", flush=True)
+        print(f"Epoch {epoch+1} Training ====", flush=True)
         loss, train_state = run_epoch(
             (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in train_dataloader),
             model,
@@ -492,7 +492,7 @@ def train_model(model, train_dataloader, dev_loader, src_vocab_size, tgt_vocab_s
             train_state=train_state
         )
 
-        print(f"[GPU{gpu}] Epoch {epoch+1} Validation ====", flush=True)
+        print(f"Epoch {epoch+1} Validation ====", flush=True)
         model.eval()
         sloss, _ = run_epoch(
             (Seq2SeqBatch(src, tgt, index_padding) for (src, tgt) in dev_loader),
@@ -523,13 +523,12 @@ from os.path import exists
 
 def load_trained_model(model: nn.Module, model_path):
     assert exists(model_path)
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
     return model
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from config import TRANSFORMER_NUM_EPOCHS
-from dictionary import remove_special_symbols
 from bleu import bleu
 
 def showPlot(points):
@@ -589,6 +588,6 @@ if __name__ == "__main__":
     
     model = make_model(src_dict.n_words, tgt_dict.n_words, N=NUM_HEADS)
 
-    # train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
+    train_model(model, train_loader, dev_loader, src_dict.n_words, tgt_dict.n_words, save_path=save_path, save=True)
     
     plot_bleu(ref, dev_loader, model, save_path, tgt_dict)
