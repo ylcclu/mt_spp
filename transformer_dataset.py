@@ -107,9 +107,11 @@ class Seq2SeqBatch:
         )
         return tgt_mask
         
+from config import TRANSFORMER_BATCH_SIZE
+
 def greedy_search(model, src, src_mask, max_len, start_symbol):
     memory = model.encode(src, src_mask)
-    ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data)
+    ys = torch.zeros(TRANSFORMER_BATCH_SIZE, 1).fill_(start_symbol).type_as(src.data)
     # print(f"greedy_search: memory {memory.size()}, ys {ys.size()}")
     for _ in range(max_len - 1):
         # print(f"subsequent_mask(ys.size(1)).type_as(src.data) {subsequent_mask(ys.size(1)).type_as(src.data)}")
@@ -120,7 +122,7 @@ def greedy_search(model, src, src_mask, max_len, start_symbol):
         _, next_word = torch.max(prob, dim=1)
         next_word = next_word.data[0]
         ys = torch.cat(
-            [ys, torch.zeros(1, 1).type_as(src.data).fill_(next_word)], dim=1
+            [ys, torch.zeros(TRANSFORMER_BATCH_SIZE, 1).type_as(src.data).fill_(next_word)], dim=1
         )
     return ys
 
@@ -168,17 +170,18 @@ def generate_translation(trained_model, dev_loader, vocab_tgt: Dictionary, devic
 
         batch.src, batch.src_mask = batch.src.to(device=device), batch.src_mask.to(device=device)
 
-        model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')[0]
-        # print(f"model_out {model_out}")
-        # print(f"src {batch.src}")
+        model_out = search(trained_model, batch.src, batch.src_mask, config.max_length, config.index_sentence_start, mode='greedy')
+        print(f"model_out {model_out}")
+        print(f"src {batch.src}")
 
-        model_txt = (
+        model_txt = [
             " ".join(
-                [vocab_tgt.get_word(x) for x in model_out.tolist() if x != config.index_padding]
+                [vocab_tgt.get_word(x) for x in hypo.tolist() if x != config.index_padding]
             ).split(config.sentence_end, 1)[0]
             + config.sentence_end
-        )
-        # print(model_txt)
+            for hypo in model_out
+        ]
+        print(f"model_out {model_txt}")
         translations.append(model_txt)
 
     return remove_special_symbols(translations)

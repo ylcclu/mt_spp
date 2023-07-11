@@ -600,9 +600,9 @@ if __name__ == "__main__":
     
     # plot_bleu(ref, dev_src, model, save_path, src_dict, tgt_dict)
 
-    dev_for_translation = DataLoader(dataset=dev_dataset,
-                                     batch_size=1,
-                                     shuffle=False,
-                                     drop_last=False)
+    # dev_for_translation = DataLoader(dataset=dev_dataset,
+    #                                  batch_size=1,
+    #                                  shuffle=False,
+    #                                  drop_last=False)
 
-    plot_bleu(ref, dev_for_translation, model, save_path, tgt_dict, device=device)
+    plot_bleu(ref, dev_loader, model, save_path, tgt_dict, device=device)
